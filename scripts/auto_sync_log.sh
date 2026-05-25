@@ -16,6 +16,9 @@ source /work/gj26/b20090/fast-slow-learning/env_akorn/bin/activate
 { echo ""; echo "[$(date -Is)] auto_sync_log started (every ${SYNC_EVERY_SECS}s)"; } >> "$LOG"
 
 while true; do
+    # Pull TSUBAME offline-run dirs back so the rest of this loop catches them.
+    rsync -a --update tsubame:GRAM_Reproduce/wandb/wandb/ "$GRAM/wandb/wandb/" 2>/dev/null || true
+
     # Find offline-run directories whose .wandb file was modified in last 30 min.
     # That's tight enough to filter out long-finished smoke runs that don't get
     # rewritten, while still catching active training runs (which append continuously).
