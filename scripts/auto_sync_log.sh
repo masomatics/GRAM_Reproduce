@@ -1,7 +1,7 @@
 #!/bin/bash
 # Periodic wandb sync + log append. Designed to run as a persistent Monitor.
-# Each iteration emits ONE line summary (lands in chat notifications) AND
-# appends a richer line to log_claude.txt.
+# Each iteration emits one notification line per active wandb run AND appends
+# the same line to log_claude.txt.
 
 set -u
 GRAM=/work/gj26/b20090/GRAM_Reproduce
@@ -16,26 +16,21 @@ source /work/gj26/b20090/fast-slow-learning/env_akorn/bin/activate
 { echo ""; echo "[$(date -Is)] auto_sync_log started (every ${SYNC_EVERY_SECS}s)"; } >> "$LOG"
 
 while true; do
-    # Sync every offline-run directory whose .wandb file was modified in the last
-    # 2 hours (i.e. probably still active). Then report the most recently modified
-    # one in the chat notification.
-    ACTIVE_RUNS=$(find "$GRAM/wandb/wandb" -maxdepth 2 -name "run-*.wandb" -mmin -120 -print 2>/dev/null | sort)
-    if [ -z "$ACTIVE_RUNS" ]; then
+    # Find offline-run directories whose .wandb file was modified in last 2h.
+    ACTIVE_DIRS=$(find "$GRAM/wandb/wandb" -maxdepth 2 -name "run-*.wandb" -mmin -120 -print 2>/dev/null \
+                  | xargs -I{} dirname {} 2>/dev/null | sort -u)
+    if [ -z "$ACTIVE_DIRS" ]; then
         echo "[$(date -Is)] no active wandb runs in last 2h"
         sleep "$SYNC_EVERY_SECS"
         continue
     fi
-    LATEST_DIR=""
-    for f in $ACTIVE_RUNS; do
-        d=$(dirname "$f")
-        wandb sync "$d" >/dev/null 2>&1 || true
-        LATEST_DIR=$d
-    done
-    LATEST="${LATEST_DIR##*/}"
-    RUN_ID="${LATEST##*-}"
 
-    # Pull the most relevant numbers via wandb API.
-    SUMMARY=$(python - <<PY 2>/dev/null
+    for d in $ACTIVE_DIRS; do
+        wandb sync "$d" >/dev/null 2>&1 || true
+        LATEST="${d##*/}"
+        RUN_ID="${LATEST##*-}"
+
+        SUMMARY=$(python - <<PY 2>/dev/null
 import wandb
 api = wandb.Api()
 try:
@@ -56,10 +51,11 @@ else:
 PY
 )
 
-    STAMP=$(date -Is)
-    LINE="[$STAMP] run=${RUN_ID} ${SUMMARY}"
-    echo "$LINE"                 # event line -> chat notification
-    echo "$LINE" >> "$LOG"       # persistent file record
+        STAMP=$(date -Is)
+        LINE="[$STAMP] run=${RUN_ID} ${SUMMARY}"
+        echo "$LINE"                 # event line -> chat notification
+        echo "$LINE" >> "$LOG"       # persistent file record
+    done
 
     sleep "$SYNC_EVERY_SECS"
 done
