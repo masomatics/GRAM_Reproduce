@@ -16,11 +16,13 @@ source /work/gj26/b20090/fast-slow-learning/env_akorn/bin/activate
 { echo ""; echo "[$(date -Is)] auto_sync_log started (every ${SYNC_EVERY_SECS}s)"; } >> "$LOG"
 
 while true; do
-    # Find offline-run directories whose .wandb file was modified in last 2h.
-    ACTIVE_DIRS=$(find "$GRAM/wandb/wandb" -maxdepth 2 -name "run-*.wandb" -mmin -120 -print 2>/dev/null \
+    # Find offline-run directories whose .wandb file was modified in last 30 min.
+    # That's tight enough to filter out long-finished smoke runs that don't get
+    # rewritten, while still catching active training runs (which append continuously).
+    ACTIVE_DIRS=$(find "$GRAM/wandb/wandb" -maxdepth 2 -name "run-*.wandb" -mmin -30 -print 2>/dev/null \
                   | xargs -I{} dirname {} 2>/dev/null | sort -u)
     if [ -z "$ACTIVE_DIRS" ]; then
-        echo "[$(date -Is)] no active wandb runs in last 2h"
+        echo "[$(date -Is)] no active wandb runs in last 30 min"
         sleep "$SYNC_EVERY_SECS"
         continue
     fi
