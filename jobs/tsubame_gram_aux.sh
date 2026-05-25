@@ -18,6 +18,7 @@ CKPT=$GRAM/checkpoints/gram_sudoku_aux
 mkdir -p "$CKPT" "$GRAM/wandb"
 
 apptainer exec --cleanenv --home "$HOME" \
+  --bind /gs/bs/hp260232:/gs/bs/hp260232 \
   --env WANDB_API_KEY="${WANDB_API_KEY:-}" --env WANDB_MODE=offline \
   --env PYTHONPATH="$GRAM/env_extra" \
   --env WANDB_DIR="$GRAM/wandb" \
