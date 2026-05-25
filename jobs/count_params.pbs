@@ -19,6 +19,6 @@ module load cudnn/9.5.1.17
 # shellcheck disable=SC1091
 source "$AKORN_VENV/bin/activate"
 export PYTHONPATH="$GRAM/env_extra${PYTHONPATH:+:$PYTHONPATH}"
-cd "$GRAM/external/TRM"
+cd "$GRAM/source"
 
 python "$GRAM/scripts/count_params.py"

@@ -1,15 +1,14 @@
 #!/bin/bash
-#PBS -q regular-g
+#PBS -q short-g
 #PBS -l select=1
-#PBS -l walltime=08:00:00
+#PBS -l walltime=00:30:00
 #PBS -W group_list=gj26
-#PBS -N gram_long
+#PBS -N gram_thru
 #PBS -j oe
 #PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
 
-# Full GRAM training run on Sudoku-Extreme.
-# Paper recipe: AdamW lr=1e-4, batch=768, ~50K epochs, target 97% exact-acc.
-# Estimated wall time on single GH200: ~2-4h (well under the 8h budget).
+# Throughput sanity at paper batch=768 on a single GH200. Skip test eval
+# (422K examples) by setting epochs small + eval_interval larger than epochs.
 
 set -eu
 GRAM=/work/gj26/b20090/GRAM_Reproduce
@@ -24,28 +23,22 @@ module load cudnn/9.5.1.17
 source "$AKORN_VENV/bin/activate"
 export PYTHONPATH="$GRAM/env_extra${PYTHONPATH:+:$PYTHONPATH}"
 
-cd "$GRAM/external/TRM"
+cd "$GRAM/source"
 
 export WANDB_MODE=offline
 export WANDB_DIR="$GRAM/wandb"
 mkdir -p "$WANDB_DIR"
 
-CKPT_DIR="$GRAM/checkpoints/gram_sudoku_long"
-mkdir -p "$CKPT_DIR"
-
-# epochs=50000 with eval_interval=5000 -> 10 eval+checkpoint phases.
-# checkpoint_every_eval saves model weights at each eval, enabling resume.
+# epochs=20 -> total iters scale; eval_interval=999 skips the heavy test eval.
 python pretrain.py \
   arch=gram \
   data_paths="[$GRAM/data/sudoku-extreme-1k-aug-1000]" \
   evaluators="[]" \
-  epochs=50000 eval_interval=5000 \
+  epochs=20 eval_interval=999 \
   global_batch_size=768 \
   lr=1e-4 puzzle_emb_lr=1e-4 \
   weight_decay=1.0 puzzle_emb_weight_decay=1.0 \
   arch.mlp_t=True arch.pos_encodings=none \
   arch.L_layers=2 \
   arch.H_cycles=3 arch.L_cycles=6 \
-  checkpoint_every_eval=True \
-  +checkpoint_path="$CKPT_DIR" \
-  +run_name=gram_sudoku_long ema=True
+  +run_name=gram_sudoku_throughput ema=True

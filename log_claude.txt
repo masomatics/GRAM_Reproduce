@@ -200,4 +200,14 @@ NEXT: Implement GRAM-specific layer on top of TRM:
     * eps_logsigma_init -2.0 -> 0.0
   Awaits user greenlight before submission.
 
+[2026-05-25] Repo restructure
+- external/TRM/ -> source/  (we own this snapshot; renamed for clarity).
+- scripts/ split:
+    - .pbs and .sh scripts moved to jobs/.
+    - .py helpers stay in scripts/.
+- Empty src/gram/ deleted.
+- Updated path refs in jobs/*.pbs and scripts/count_params.py.
+- Added README.md at repo root with layout + run instructions.
+- Running job 2003859 unaffected (code already loaded; checkpoint paths absolute).
+
 

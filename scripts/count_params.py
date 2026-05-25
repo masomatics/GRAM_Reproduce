@@ -1,6 +1,6 @@
 """Print GRAM and TRM Sudoku parameter counts to compare with paper (10.9M)."""
 import sys
-sys.path.insert(0, "/work/gj26/b20090/GRAM_Reproduce/external/TRM")
+sys.path.insert(0, "/work/gj26/b20090/GRAM_Reproduce/source")
 
 import torch
 

@@ -1,14 +1,14 @@
 #!/bin/bash
 #PBS -q debug-g
 #PBS -l select=1
-#PBS -l walltime=00:25:00
+#PBS -l walltime=00:15:00
 #PBS -W group_list=gj26
-#PBS -N trm_smoke
+#PBS -N gram_smoke
 #PBS -j oe
 #PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
 
-# Tiny TRM training smoke test on Sudoku-Extreme to confirm the full pipeline runs.
-# Not for final numbers — just verify model builds + 1+ epoch completes.
+# Smoke test of GRAM model on Sudoku-Extreme: builds the new model, runs ~1 epoch
+# at small batch, and exits. Just to verify the model + ELBO loss head are wired up.
 
 set -eu
 GRAM=/work/gj26/b20090/GRAM_Reproduce
@@ -23,23 +23,23 @@ module load cudnn/9.5.1.17
 source "$AKORN_VENV/bin/activate"
 export PYTHONPATH="$GRAM/env_extra${PYTHONPATH:+:$PYTHONPATH}"
 
-cd "$GRAM/external/TRM"
+cd "$GRAM/source"
 
-# Disable wandb syncing for smoke; offline mode keeps the run local.
 export WANDB_MODE=offline
 export WANDB_DIR="$GRAM/wandb"
 mkdir -p "$WANDB_DIR"
 
-# 200-epoch tiny run with small batch + eval at the end.
+# Use the GRAM arch (with mlp_t=True for Sudoku per paper Section D.5);
+# 1 short epoch at small batch to verify forward/backward.
 python pretrain.py \
-  arch=trm \
+  arch=gram \
   data_paths="[$GRAM/data/sudoku-extreme-1k-aug-1000]" \
   evaluators="[]" \
-  epochs=200 eval_interval=200 \
+  epochs=100 eval_interval=100 \
   global_batch_size=64 \
   lr=1e-4 puzzle_emb_lr=1e-4 \
   weight_decay=1.0 puzzle_emb_weight_decay=1.0 \
   arch.mlp_t=True arch.pos_encodings=none \
   arch.L_layers=2 \
   arch.H_cycles=3 arch.L_cycles=6 \
-  +run_name=trm_sudoku_smoke ema=True
+  +run_name=gram_sudoku_smoke ema=True
