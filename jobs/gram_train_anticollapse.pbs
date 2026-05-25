@@ -8,11 +8,15 @@
 #PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
 
 # Anti-posterior-collapse follow-up.
-# Changes vs. gram_train_long.pbs:
-#   - beta_kl   0.1 -> 0.3   (3x stronger KL pressure)
-#   - free_bits  0.0 -> 0.05 (floor avg KL at 0.05 nats / batch, prevents zeroing)
-#   - eps_logsigma_init -2.0 -> 0.0 (sigma starts at 1, not ~0.135)
-# Keeps everything else identical to long run for clean comparison.
+# Code changes (committed) since gram_train_long.pbs ran:
+#   - gram.py: removed logsigma.down_proj.weight.zero_() so sigma gets gradients
+#     from step 1 instead of being locked at init.
+#   - gram_loss.py: added beta_warmup_steps for linear KL warmup.
+# Hyperparam changes vs. gram_train_long.pbs:
+#   - eps_logsigma_init  -2.0  -> 0.0   (sigma starts at 1 instead of ~0.135)
+#   - beta_warmup_steps  0     -> 10000 (warm beta 0->0.1 over ~15% of training)
+#   - free_bits          0     -> 0.05  (per-batch KL floor, anti-collapse belt)
+#   - beta_kl kept at paper default 0.1; kl_balance kept at paper default 0.8
 
 set -eu
 GRAM=/work/gj26/b20090/GRAM_Reproduce
@@ -48,7 +52,8 @@ python pretrain.py \
   arch.L_layers=2 \
   arch.H_cycles=3 arch.L_cycles=6 \
   arch.eps_logsigma_init=0.0 \
-  arch.loss.beta_kl=0.3 arch.loss.free_bits=0.05 \
+  arch.loss.beta_kl=0.1 arch.loss.kl_balance=0.8 \
+  arch.loss.free_bits=0.05 arch.loss.beta_warmup_steps=10000 \
   checkpoint_every_eval=True \
   +checkpoint_path="$CKPT_DIR" \
   +run_name=gram_sudoku_anticollapse ema=True

@@ -70,8 +70,8 @@ class _MuSigmaHead(nn.Module):
         super().__init__()
         self.mu = SwiGLU(hidden_size=hidden_size, expansion=expansion)
         self.logsigma = SwiGLU(hidden_size=hidden_size, expansion=expansion)
-        with torch.no_grad():
-            self.logsigma.down_proj.weight.zero_()
+        # Use default trunc-normal init for logsigma's down_proj (NOT zeroed) — zeroing
+        # made gradients into sigma vanish at init and locked the model into KL=0.
         self.logsigma_init = nn.Parameter(torch.full((hidden_size,), float(logsigma_init)))
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:

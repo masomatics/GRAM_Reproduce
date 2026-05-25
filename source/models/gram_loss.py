@@ -18,13 +18,17 @@ from models.losses import stablemax_cross_entropy, softmax_cross_entropy, IGNORE
 class GRAMLossHead(nn.Module):
     def __init__(self, model: nn.Module, loss_type: str,
                  beta_kl: float = 0.1, kl_balance: float = 0.8,
-                 free_bits: float = 0.0):
+                 free_bits: float = 0.0, beta_warmup_steps: int = 0):
         super().__init__()
         self.model = model
         self.loss_fn = globals()[loss_type]
         self.beta_kl = float(beta_kl)
         self.kl_balance = float(kl_balance)
         self.free_bits = float(free_bits)
+        # Linear KL warmup. effective_beta(step) = beta_kl * min(1, step/warmup_steps).
+        # Lets the posterior learn an informative signal before the KL penalty bites.
+        self.beta_warmup_steps = int(beta_warmup_steps)
+        self.register_buffer("_step", torch.zeros((), dtype=torch.long), persistent=False)
 
     def initial_carry(self, *args, **kwargs):
         return self.model.initial_carry(*args, **kwargs)
@@ -62,12 +66,19 @@ class GRAMLossHead(nn.Module):
         if self.free_bits > 0:
             kl_balanced = torch.clamp_min(kl_balanced, self.free_bits)
         kl_loss = kl_balanced.sum()
-        total_loss = lm_loss + self.beta_kl * kl_loss
+
+        if self.training and self.beta_warmup_steps > 0:
+            self._step += 1
+            beta_eff = self.beta_kl * min(1.0, float(self._step.item()) / self.beta_warmup_steps)
+        else:
+            beta_eff = self.beta_kl
+        total_loss = lm_loss + beta_eff * kl_loss
 
         metrics.update({
             "lm_loss": lm_loss.detach(),
             "kl_loss": kl_loss.detach(),
             "kl_mean": kl_balanced.mean().detach(),
+            "beta_eff": torch.tensor(beta_eff, device=lm_loss.device),
         })
 
         detached_outputs = {k: outputs[k].detach() for k in return_keys if k in outputs}
