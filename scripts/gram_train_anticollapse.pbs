@@ -1,0 +1,54 @@
+#!/bin/bash
+#PBS -q regular-g
+#PBS -l select=1
+#PBS -l walltime=08:00:00
+#PBS -W group_list=gj26
+#PBS -N gram_ac
+#PBS -j oe
+#PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
+
+# Anti-posterior-collapse follow-up.
+# Changes vs. gram_train_long.pbs:
+#   - beta_kl   0.1 -> 0.3   (3x stronger KL pressure)
+#   - free_bits  0.0 -> 0.05 (floor avg KL at 0.05 nats / batch, prevents zeroing)
+#   - eps_logsigma_init -2.0 -> 0.0 (sigma starts at 1, not ~0.135)
+# Keeps everything else identical to long run for clean comparison.
+
+set -eu
+GRAM=/work/gj26/b20090/GRAM_Reproduce
+AKORN_VENV=/work/gj26/b20090/fast-slow-learning/env_akorn
+
+module purge
+module load python/3.10.16
+module load cuda/12.6
+module load cudnn/9.5.1.17
+
+# shellcheck disable=SC1091
+source "$AKORN_VENV/bin/activate"
+export PYTHONPATH="$GRAM/env_extra${PYTHONPATH:+:$PYTHONPATH}"
+
+cd "$GRAM/external/TRM"
+
+export WANDB_MODE=offline
+export WANDB_DIR="$GRAM/wandb"
+mkdir -p "$WANDB_DIR"
+
+CKPT_DIR="$GRAM/checkpoints/gram_sudoku_anticollapse"
+mkdir -p "$CKPT_DIR"
+
+python pretrain.py \
+  arch=gram \
+  data_paths="[$GRAM/data/sudoku-extreme-1k-aug-1000]" \
+  evaluators="[]" \
+  epochs=50000 eval_interval=5000 \
+  global_batch_size=768 \
+  lr=1e-4 puzzle_emb_lr=1e-4 \
+  weight_decay=1.0 puzzle_emb_weight_decay=1.0 \
+  arch.mlp_t=True arch.pos_encodings=none \
+  arch.L_layers=2 \
+  arch.H_cycles=3 arch.L_cycles=6 \
+  arch.eps_logsigma_init=0.0 \
+  arch.loss.beta_kl=0.3 arch.loss.free_bits=0.05 \
+  checkpoint_every_eval=True \
+  +checkpoint_path="$CKPT_DIR" \
+  +run_name=gram_sudoku_anticollapse ema=True

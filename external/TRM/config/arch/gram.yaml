@@ -1,0 +1,33 @@
+name: recursive_reasoning.gram@GenerativeRecursiveModel_ACTV1
+loss:
+  name: gram_loss@GRAMLossHead
+  loss_type: stablemax_cross_entropy
+  beta_kl: 0.1
+  kl_balance: 0.8
+
+halt_exploration_prob: 0.0   # GRAM: fixed N_sup supervision steps
+halt_max_steps: 16           # N_sup per Sudoku-Extreme experiments
+
+H_cycles: 3
+L_cycles: 6
+
+H_layers: 0
+L_layers: 2
+
+hidden_size: 512
+num_heads: 8
+expansion: 4
+
+puzzle_emb_ndim: ${.hidden_size}
+
+pos_encodings: rope
+forward_dtype: bfloat16
+
+mlp_t: False                 # default; for Sudoku-Extreme override to True
+puzzle_emb_len: 16
+no_ACT_continue: True
+
+# GRAM-specific stochastic-head config (model-side)
+# eps_expansion=2.0 -> 10.27M total params; paper reports 10.9M.
+eps_expansion: 2.0
+eps_logsigma_init: -2.0

@@ -1,0 +1,24 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:05:00
+#PBS -W group_list=gj26
+#PBS -N gram_count
+#PBS -j oe
+#PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
+
+set -eu
+GRAM=/work/gj26/b20090/GRAM_Reproduce
+AKORN_VENV=/work/gj26/b20090/fast-slow-learning/env_akorn
+
+module purge
+module load python/3.10.16
+module load cuda/12.6
+module load cudnn/9.5.1.17
+
+# shellcheck disable=SC1091
+source "$AKORN_VENV/bin/activate"
+export PYTHONPATH="$GRAM/env_extra${PYTHONPATH:+:$PYTHONPATH}"
+cd "$GRAM/external/TRM"
+
+python "$GRAM/scripts/count_params.py"

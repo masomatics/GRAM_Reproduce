@@ -1,0 +1,45 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:25:00
+#PBS -W group_list=gj26
+#PBS -N trm_smoke
+#PBS -j oe
+#PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
+
+# Tiny TRM training smoke test on Sudoku-Extreme to confirm the full pipeline runs.
+# Not for final numbers — just verify model builds + 1+ epoch completes.
+
+set -eu
+GRAM=/work/gj26/b20090/GRAM_Reproduce
+AKORN_VENV=/work/gj26/b20090/fast-slow-learning/env_akorn
+
+module purge
+module load python/3.10.16
+module load cuda/12.6
+module load cudnn/9.5.1.17
+
+# shellcheck disable=SC1091
+source "$AKORN_VENV/bin/activate"
+export PYTHONPATH="$GRAM/env_extra${PYTHONPATH:+:$PYTHONPATH}"
+
+cd "$GRAM/external/TRM"
+
+# Disable wandb syncing for smoke; offline mode keeps the run local.
+export WANDB_MODE=offline
+export WANDB_DIR="$GRAM/wandb"
+mkdir -p "$WANDB_DIR"
+
+# 200-epoch tiny run with small batch + eval at the end.
+python pretrain.py \
+  arch=trm \
+  data_paths="[$GRAM/data/sudoku-extreme-1k-aug-1000]" \
+  evaluators="[]" \
+  epochs=200 eval_interval=200 \
+  global_batch_size=64 \
+  lr=1e-4 puzzle_emb_lr=1e-4 \
+  weight_decay=1.0 puzzle_emb_weight_decay=1.0 \
+  arch.mlp_t=True arch.pos_encodings=none \
+  arch.L_layers=2 \
+  arch.H_cycles=3 arch.L_cycles=6 \
+  +run_name=trm_sudoku_smoke ema=True

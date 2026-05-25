@@ -1,0 +1,203 @@
+==========================================
+GRAM_Reproduce — Claude session log
+==========================================
+
+[2026-05-25] Session start (switched from fastslow)
+- Repo state: fresh git repo on `main`, no commits yet.
+- Contents: only documents/GRAM_Looped.pdf (8.5 MB).
+- Created ~/GRAM_Reproduce_cmd.sh wrapper.
+- Created wandb_stdout/.
+- Awaiting user direction on reproduction task.
+
+[2026-05-25] Paper identified
+- GRAM = "Generative Recursive Reasoning" (Baek, Jo, Kim, Ren, Bengio, Ahn). arXiv:2605.19376v2.
+- Project page: https://ahn-ml.github.io/gram-website/  → "Code (coming soon)" — NO official repo released.
+- Paper cites Sudoku-Extreme benchmark; baselines: HRM (github.com/sapientinc/HRM), TRM
+  (github.com/SamsungSAILMontreal/TinyRecursiveModels), Looped Transformer
+  (github.com/Leiay/looped_transformer), MDLM (github.com/kuleshov-group/mdlm), D3PM.
+- Reported Sudoku result in abstract: 99.05% validity unconditional gen, 10.9M params, 16 supervision steps.
+- Implication: reproduction must be re-implemented from the paper + reference repos.
+
+[2026-05-25] Smoke test submitted
+- Created scripts/smoke_test.py (torch CUDA check) and scripts/smoke_test.pbs (debug-g, 10min, 1 node).
+- qsub job id 1994897 → RUNNING in debug-g immediately.
+- Stdout will land in wandb_stdout/ (PBS -o set).
+- RESULT: PASSED. Host mg0014, GPU NVIDIA GH200 120GB (102GB HBM, cc 9.0),
+  python 3.12.3 aarch64, torch 2.6.0a0+ecf3bae40a.nv25.01, CUDA available, matmul ok.
+- Output file: wandb_stdout/1994897.opbs.OU
+
+[2026-05-25] PDF extraction
+- Job 1996151 in debug-c FAILED: pytorch_25.01.sif is arm64, debug-c nodes are amd64.
+- Job 1996161 in debug-g succeeded but pypdf couldn't decode page streams (compressed).
+- Switched to fetching paper from arXiv via WebFetch — got abstract + Sudoku detail.
+
+[2026-05-25] Paper specifics (from arXiv 2605.19376v2 abstract + HTML section D.5)
+- Full name: GRAM = Generative Recursive reAsoning Models. Extends deterministic RRMs.
+- Method: stochastic latent trajectory; amortized variational inference (encoder q_phi + prior p_theta).
+- Loss: E_q[log p(y|z_T,x)] - KL(q_phi(eps_T|u_T,y) || p_theta(eps_T|u_T)).
+  Sudoku: beta_KL=0.1, KL-balance=0.8.
+- Sudoku-Extreme architecture for GRAM:
+  * Recursive Core swaps Attention+SwiGLU -> [SwiGLU + SwiGLU] (Sudoku-only).
+  * Hidden D=512, 10.9M params total.
+  * State z=(h, l); K=6 low-level refinements; T=3 high-level transitions; N_sup=16 supervision steps.
+- Training: AdamW, lr=1e-4, batch=768, ~50K epochs (200 for unconditional), 8x RTX 4090, ~2h.
+- Results: 97.0% cond. accuracy on Sudoku-Extreme; 99.05% validity unconditional gen.
+- Baseline RRM = TRM (TinyRecursiveModels @ SamsungSAILMontreal, MIT).
+  TRM Sudoku: arch.mlp_t=True, L_layers=2, H_cycles=3, L_cycles=6, lr=1e-4, 50K epochs, ~87% acc.
+
+[2026-05-25] fast-slow-learning reference
+- It's the *AKOrN baseline* (Miyato, arXiv 2410.13821), NOT GRAM. Different model & loss.
+- Reusable: dataset `data/sudoku-extreme-1k-aug-1000` (+csv variants), miyabi hpc_jobs pattern.
+- Model/loss/eval-validity logic must come from TRM + paper.
+
+[2026-05-25] TRM cloned
+- external/TRM at commit c01103738605ba39d1430519b1ee0c62f4c707f8 (MIT).
+- data/sudoku-extreme-1k-aug-1000 symlinked to fast-slow-learning/.
+- TRM Sudoku README cmd: arch.mlp_t=True, L_layers=2, H_cycles=3, L_cycles=6,
+  lr=1e-4, 50K epochs, ema=True. Expected ~87% exact-acc, ~18h on 1 L40S.
+
+[2026-05-25] Env setup
+- Reused fast-slow-learning/env_akorn (torch 2.9.0+cu126, einops, triton, pydantic, argdantic, wandb).
+- Job 1996329 (debug-g) installed into GRAM_Reproduce/env_extra/:
+  hydra-core 1.3.2, omegaconf 2.3.0, coolname 2.2.0, numba 0.61.2, ninja, adam-atan2 0.0.3.
+- adam-atan2 compiled (CUDA ext) successfully against torch 2.9 on GH200.
+- All imports verified.
+
+[2026-05-25] TRM smoke training submitted
+- scripts/trm_smoke.pbs (debug-g, 25min, 200 epochs, global_batch_size=64). Job id 1996498.
+- Purpose: verify pretrain.py loads data + model, runs >=1 epoch on GH200; not for final numbers.
+
+[2026-05-25] Pipeline verification
+- First run (job 1996498) failed: TRM's PuzzleDatasetMetadata required total_puzzles field
+  not present in fast-slow-learning's older dataset.json.
+- Fix: kept .npy files as symlinks; wrote local dataset.json in train/ and test/ adding
+  total_puzzles (= total_groups: 1000 train, 422786 test). identifiers.json symlinked.
+- Resubmitted as job 1997506 — SUCCESS. Model built:
+  TinyRecursiveReasoningModel_ACTV1 with mlp_t=True (SwiGLU+SwiGLU recursive core).
+  Training advances ~44 it/s on GH200 (3125 iters/epoch with batch=64).
+  EMA + EVALUATE phase entered cleanly.
+- Cancelled (qdel) once pipeline verified — full training would have hit walltime.
+
+NEXT: Implement GRAM-specific layer on top of TRM:
+  per-step stochastic latent eps_n, q_phi posterior head, p_theta prior head,
+  ELBO = E_q[log p(y|z_T,x)] - beta * KL, beta=0.1, KL-balance=0.8, N_sup=16.
+
+[2026-05-25] GRAM model implementation v0
+- Confirmed paper detail (via WebFetch on arXiv HTML): only the (mu, sigma) MLP
+  heads differ between p_theta and q_phi; recursive core (TRM's L_level blocks)
+  is shared. z_t = u_t + eps_t (additive perturbation on z_H).
+- New files (extend TRM in place, minimal diff):
+  external/TRM/models/recursive_reasoning/gram.py
+    GenerativeRecursiveModel_ACTV1{,_Inner,Carry,InnerCarry,Config}
+    - Subclasses TRM's config; adds eps_expansion, eps_logsigma_init.
+    - Inner reuses TRM's _input_embeddings, L_level recursion, lm_head, q_head.
+    - Adds: prior_head (SwiGLU mu, SwiGLU log_sigma, input=u_t),
+            posterior_in (Linear 2D->D for [u_t, y_emb]),
+            posterior_head (SwiGLU mu, SwiGLU log_sigma).
+    - reparam sample eps ~ q_phi (train) or p_theta (eval).
+    - emits both KL halves (q-stop, p-stop) for DreamerV2 KL-balance.
+    - ACT wrapper simplified: fixed N_sup steps, no Q-learning halting.
+  external/TRM/models/gram_loss.py
+    GRAMLossHead: CE + beta * (alpha*KL_qstop + (1-alpha)*KL_pstop), free_bits opt.
+  external/TRM/config/arch/gram.yaml
+    name: recursive_reasoning.gram@GenerativeRecursiveModel_ACTV1
+    loss: gram_loss@GRAMLossHead  beta_kl=0.1  kl_balance=0.8
+    halt_max_steps=16 (N_sup), halt_exploration_prob=0.0
+    same H_cycles=3, L_cycles=6, hidden=512, L_layers=2 as TRM.
+- Submitted scripts/gram_smoke.pbs (debug-g, 15min, batch=64, mlp_t=True) -> job 1997761.
+
+[2026-05-25] GRAM smoke verification
+- Job 1997761: GenerativeRecursiveModel_ACTV1 built with prior_head, posterior_in,
+  posterior_head, then trained ~1562 iters at ~38 it/s on GH200, entered EVALUATE.
+  Cancelled after training pass confirmed.
+
+[2026-05-25] Parameter count (job 1998996)
+- TRM Sudoku (mlp_t=True, hidden=512, L_layers=2): 5,028,866 (5.03M)
+- GRAM eps_expansion=1.0: 8,699,906 (8.70M)
+- GRAM eps_expansion=2.0: 10,272,770 (10.27M)  <- closest to paper's 10.9M
+- GRAM eps_expansion=4.0: 14,991,362 (14.99M)
+- Updated gram.yaml: eps_expansion: 2.0 (default).
+- Small remaining gap (~0.6M) vs paper's 10.9M likely due to head-config minutiae
+  not specified in the paper or web summary.
+
+[2026-05-25] Plan: throughput sanity at batch=768
+- short-g, 30min walltime; epochs=20 eval_interval=999 (skip 422K test eval).
+- Goal: measure it/s on GH200 at paper batch, confirm CE+KL both decrease.
+- Submitted scripts/gram_throughput.pbs -> job 2003730.
+- Short-g start ETA was 2h+ (queued), so cancelled and went straight to long run.
+
+[2026-05-25] Total-iters arithmetic
+- TRM pretrain.py: total_steps = epochs * total_groups * mean_puzzle_examples / batch
+                            = epochs * 1000 / batch
+- Paper recipe (epochs=50000, batch=768): total_steps ~ 65,104 iters.
+- At a likely ~10 it/s for batch=768 on GH200 -> ~2h full run; fits in 1 x 8h job.
+- Paper reports ~2h on 8x RTX 4090; GH200 is much faster per-card, so 1 GPU OK.
+
+[2026-05-25] Long training submitted
+- scripts/gram_train_long.pbs (regular-g sub-queue small-g, 8h walltime).
+- epochs=50000, eval_interval=5000 (10 evals), batch=768, checkpoint_every_eval=True.
+- checkpoint_path=checkpoints/gram_sudoku_long/.
+- Job id 2003859 -> QUEUED. Token budget shows 8.0; may take some time to start.
+- If walltime hits before finish: resubmit with +load_checkpoint=<latest step_*>.
+- WARNING: TRM's save_train_state only saves model weights (no optimizer/EMA);
+  resumes will restart LR warmup from step 1 -> some inefficiency but acceptable.
+
+[2026-05-25 18:09] Long training running
+- Job 2003859 RUNNING in small-g since 18:01 (~8min elapsed).
+- Confirmed total_steps = 65,104 (matches our arithmetic).
+- THROUGHPUT: 7.02 it/s at batch=768 on a single GH200 with mlp_t=True.
+- ETA to finish: ~2h 27min (8 min elapsed + 147 min remaining).
+- Train metrics logged to wandb-offline (binary); will see first eval +
+  checkpoint at iter ~6500 (epoch 5000) around 18:23.
+
+[2026-05-25 18:36] First eval+checkpoint completed
+- At iter 6510 (10%, ~16min in), entered EVALUATE + SWITCH TO EMA.
+- Eval phase ran ~13 min on 422K test examples (no per-batch print made it to
+  stdout — likely a tqdm/buffering interaction; the file checkpoints/.../step_6510
+  was written at 18:30, ~41MB, expected size for 10.27M params + EMA).
+- Continued training through iter 9129 by 18:36 (~35min). Steady 7.0 it/s.
+- Mid-run metric extraction would need a wandb-binary parser; defer until run
+  completes (~2h remaining).
+
+[2026-05-25] wandb auth corrected
+- ~/.netrc IS a valid API key (I misread it earlier — confused the literal
+  "user" string for a placeholder).
+- Synced the offline run from the LOGIN node:
+  wandb sync /work/gj26/b20090/GRAM_Reproduce/wandb/wandb/offline-run-20260525_180123-s957pb3l
+  -> https://wandb.ai/koyama-masanori-masomatics/Sudoku-extreme-1k-aug-1000-ACT-torch/runs/s957pb3l
+- Compute nodes may not have internet, so PBS jobs keep WANDB_MODE=offline.
+  Periodic re-syncs from login node keep the cloud page up to date.
+- User pasted a wandb_v1_... key ID in chat; advised rotation since chat is logged.
+
+[2026-05-25 19:40] Progress snapshot
+- Job 2003859: iter 24987/65104 (38%), 6.99 it/s, 1h 39m elapsed, ETA ~1h 36m.
+- Checkpoints: step_6510 (epoch 5K), step_13020 (10K), step_19530 (15K). All ~40MB.
+
+[2026-05-25] Posterior collapse + slow test progress
+- train/kl_loss collapsed from 17.95 -> ~0.003 by ~iter 15K and stays there.
+- Eval at epoch 15000 (step 19530): per-token accuracy = 36.5% (up from 32.8% at 10K).
+- exact_accuracy stays 0%; reaching paper's 97% requires per-token > ~99.5%.
+- Concern: collapsed KL means q_phi == p_theta, eps loses information about y.
+  Model degrades to (deterministic TRM + small Gaussian noise on z_H).
+- Mitigation plan if test stays low after this 50K-epoch run:
+  * Anneal beta_KL from 0 to 0.1 over first ~5K iters (free q to learn first).
+  * Increase free_bits to 1.0-2.0 nats per element to prevent total collapse.
+  * Or larger beta if eps signal needs stronger pressure.
+
+[2026-05-25 20:29] Progress at 53%
+- Job 2003859 still RUNNING (slower than estimated; now ETA ~1h 12m).
+- Checkpoints saved: step_6510, 13020, 19530, 26040, 32550 (epochs 5K..25K).
+- Test per-token accuracy by eval:
+    epoch  5000 (step 6510):  32.8%
+    epoch 10000 (step 13020): ~33% (latest summary at step 13020 was the same)
+    epoch 15000 (step 19530): 36.5%
+    epoch 20000 (step 26040): 38.7%
+- Test exact_accuracy: 0% throughout. KL stays collapsed near 0.003.
+- Trajectory is climbing but far too slow for paper's 97% exact.
+- Prepared anti-collapse follow-up at scripts/gram_train_anticollapse.pbs (NOT submitted):
+    * beta_kl 0.1 -> 0.3
+    * free_bits 0 -> 0.05
+    * eps_logsigma_init -2.0 -> 0.0
+  Awaits user greenlight before submission.
+
+

@@ -1,0 +1,17 @@
+# Large or local artifacts — not for git
+checkpoints/
+env_extra/
+wandb/
+wandb_stdout/
+
+# data/ is a directory of symlinks pointing at fast-slow-learning's prepared dataset
+data/
+
+# Partial PDF text extraction (we keep the PDF itself)
+documents/GRAM_Looped.txt
+
+# Python bytecode / IDE
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/

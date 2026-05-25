@@ -1,0 +1,11 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:10:00
+#PBS -W group_list=gj26
+#PBS -N gram_setup
+#PBS -j oe
+#PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
+
+set -eu
+bash /work/gj26/b20090/GRAM_Reproduce/scripts/setup_env.sh

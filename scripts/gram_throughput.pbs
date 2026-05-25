@@ -1,0 +1,44 @@
+#!/bin/bash
+#PBS -q short-g
+#PBS -l select=1
+#PBS -l walltime=00:30:00
+#PBS -W group_list=gj26
+#PBS -N gram_thru
+#PBS -j oe
+#PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
+
+# Throughput sanity at paper batch=768 on a single GH200. Skip test eval
+# (422K examples) by setting epochs small + eval_interval larger than epochs.
+
+set -eu
+GRAM=/work/gj26/b20090/GRAM_Reproduce
+AKORN_VENV=/work/gj26/b20090/fast-slow-learning/env_akorn
+
+module purge
+module load python/3.10.16
+module load cuda/12.6
+module load cudnn/9.5.1.17
+
+# shellcheck disable=SC1091
+source "$AKORN_VENV/bin/activate"
+export PYTHONPATH="$GRAM/env_extra${PYTHONPATH:+:$PYTHONPATH}"
+
+cd "$GRAM/external/TRM"
+
+export WANDB_MODE=offline
+export WANDB_DIR="$GRAM/wandb"
+mkdir -p "$WANDB_DIR"
+
+# epochs=20 -> total iters scale; eval_interval=999 skips the heavy test eval.
+python pretrain.py \
+  arch=gram \
+  data_paths="[$GRAM/data/sudoku-extreme-1k-aug-1000]" \
+  evaluators="[]" \
+  epochs=20 eval_interval=999 \
+  global_batch_size=768 \
+  lr=1e-4 puzzle_emb_lr=1e-4 \
+  weight_decay=1.0 puzzle_emb_weight_decay=1.0 \
+  arch.mlp_t=True arch.pos_encodings=none \
+  arch.L_layers=2 \
+  arch.H_cycles=3 arch.L_cycles=6 \
+  +run_name=gram_sudoku_throughput ema=True

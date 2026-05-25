@@ -1,0 +1,18 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:10:00
+#PBS -W group_list=gj26
+#PBS -N gram_pdf
+#PBS -j oe
+#PBS -o /work/gj26/b20090/GRAM_Reproduce/wandb_stdout/
+
+set -eu
+cd "$HOME"
+module load singularity
+
+SIF="$HOME/singularity/pytorch_25.01.sif"
+SCRIPT="$HOME/GRAM_Reproduce/scripts/extract_pdf.py"
+
+singularity exec --cleanenv --home "$HOME" "$SIF" \
+  /bin/bash -c "pip install --quiet --user pypdf 2>/dev/null; python $SCRIPT"
