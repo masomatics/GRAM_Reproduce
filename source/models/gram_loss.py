@@ -74,11 +74,15 @@ class GRAMLossHead(nn.Module):
             beta_eff = self.beta_kl
         total_loss = lm_loss + beta_eff * kl_loss
 
+        # TRM's pretrain loop divides non-loss metric values by count (= valid.sum()).
+        # Pre-multiply scalar quantities by count so the post-division yields the
+        # actual value rather than value/count.
+        cnt = metrics["count"].clamp_min(1)
         metrics.update({
             "lm_loss": lm_loss.detach(),
             "kl_loss": kl_loss.detach(),
-            "kl_mean": kl_balanced.mean().detach(),
-            "beta_eff": torch.tensor(beta_eff, device=lm_loss.device),
+            "kl_mean": (kl_balanced.mean() * cnt).detach(),
+            "beta_eff": (torch.tensor(beta_eff, device=lm_loss.device) * cnt).detach(),
         })
 
         detached_outputs = {k: outputs[k].detach() for k in return_keys if k in outputs}
