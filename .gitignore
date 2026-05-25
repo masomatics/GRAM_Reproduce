@@ -4,6 +4,9 @@ env_extra/
 wandb/
 wandb_stdout/
 
+# Hydra per-run output directories (logs only, no source)
+source/outputs/
+
 # data/ is a directory of symlinks pointing at fast-slow-learning's prepared dataset
 data/
 
