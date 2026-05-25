@@ -22,6 +22,7 @@ apptainer exec --cleanenv --home "$HOME" \
   --env WANDB_API_KEY="${WANDB_API_KEY:-}" --env WANDB_MODE=offline \
   --env PYTHONPATH="$GRAM/env_extra" \
   --env WANDB_DIR="$GRAM/wandb" \
+  --env LD_LIBRARY_PATH="/usr/local/cuda/compat/lib:/usr/local/cuda/targets/x86_64-linux/lib" \
   --nv "$HOME/singularity/pytorch_25.01.sif" \
   /bin/bash -lc "
     set -eu
