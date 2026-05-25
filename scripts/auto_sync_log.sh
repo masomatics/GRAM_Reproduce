@@ -16,16 +16,23 @@ source /work/gj26/b20090/fast-slow-learning/env_akorn/bin/activate
 { echo ""; echo "[$(date -Is)] auto_sync_log started (every ${SYNC_EVERY_SECS}s)"; } >> "$LOG"
 
 while true; do
-    LATEST=$(readlink "$GRAM/wandb/wandb/latest-run" 2>/dev/null)
-    if [ -z "$LATEST" ]; then
-        echo "[$(date -Is)] no latest wandb run yet"
+    # Sync every offline-run directory whose .wandb file was modified in the last
+    # 2 hours (i.e. probably still active). Then report the most recently modified
+    # one in the chat notification.
+    ACTIVE_RUNS=$(find "$GRAM/wandb/wandb" -maxdepth 2 -name "run-*.wandb" -mmin -120 -print 2>/dev/null | sort)
+    if [ -z "$ACTIVE_RUNS" ]; then
+        echo "[$(date -Is)] no active wandb runs in last 2h"
         sleep "$SYNC_EVERY_SECS"
         continue
     fi
+    LATEST_DIR=""
+    for f in $ACTIVE_RUNS; do
+        d=$(dirname "$f")
+        wandb sync "$d" >/dev/null 2>&1 || true
+        LATEST_DIR=$d
+    done
+    LATEST="${LATEST_DIR##*/}"
     RUN_ID="${LATEST##*-}"
-
-    # Sync (quietly). Capture only success/error to keep notification line short.
-    SYNC_OUT=$(wandb sync "$GRAM/wandb/wandb/$LATEST" 2>&1 | grep -E "Syncing|error" | tail -1)
 
     # Pull the most relevant numbers via wandb API.
     SUMMARY=$(python - <<PY 2>/dev/null
