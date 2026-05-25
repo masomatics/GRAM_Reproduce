@@ -210,4 +210,40 @@ NEXT: Implement GRAM-specific layer on top of TRM:
 - Added README.md at repo root with layout + run instructions.
 - Running job 2003859 unaffected (code already loaded; checkpoint paths absolute).
 
+[2026-05-25] Paper appendix recheck for collapse tricks
+- Confirmed Table 7: beta_kl = 0.1 for Sudoku; KL balance = 0.8.
+- Paper does NOT use KL warmup or free-bits — relies entirely on KL balance.
+- Paper DOES use two auxiliary losses we currently OMIT:
+    L_ACT  = sum [(q_halt^n - q_halt_hat^n)^2 + (q_continue^n - q_continue_hat^n)^2]
+            (paper Eq. 15; note MSE form vs TRM's BCE on q_halt only)
+    L_LPRM = sum (v_psi(z_t) - r)^2     (paper Eq. 16; predicts reward from latent)
+- The auxiliary losses give additional gradient signal that ties z (and thus eps)
+  to a non-redundant prediction task, helping prevent posterior collapse.
+- Implication: even if our KL warmup+free_bits hack works numerically, a more
+  faithful repro should re-introduce these aux losses. For now, anti-collapse
+  smoke tests the warmup path first.
+
+[2026-05-25] Anti-collapse code changes committed (8b3840c -> 85f1cc0)
+- gram.py: stop zeroing logsigma.down_proj (root cause of init-time KL=0 lock).
+- gram_loss.py: linear KL warmup via beta_warmup_steps.
+- jobs/gram_train_anticollapse.pbs updated: eps_logsigma_init=0.0,
+  beta_warmup_steps=10000, free_bits=0.05; beta_kl=0.1 (paper default).
+- jobs/gram_anticollapse_smoke.pbs: 100-epoch debug smoke (job 2007438).
+
+[2026-05-25 21:24] Anti-collapse smoke result
+- Job 2007438 failed at submission: hydra strict-mode rejected free_bits and
+  beta_warmup_steps as unknown loss-config keys. Fixed by declaring them as
+  defaults in source/config/arch/gram.yaml (free_bits=0.0, beta_warmup_steps=0).
+- Resubmitted as job 2007445 (run wandb id ezrd0zy1). Training pass succeeded.
+- KEY RESULT: train/kl_mean = 0.051 at end of 1562 train iters
+  (vs 0.003 in the broken long run -> 17x higher). Posterior NOT collapsing.
+  train/beta_eff = 0.10 (warmed up from 0 over the first 500 steps).
+  train/lm_loss = 0.00036 (still memorizes train fast as expected).
+
+[2026-05-25 21:30] Full anti-collapse run submitted
+- jobs/gram_train_anticollapse.pbs -> job 2007450 (queued in small-g).
+- 50K epochs, batch=768, eps_logsigma_init=0.0, beta_warmup_steps=10000,
+  free_bits=0.05, beta_kl=0.1 (paper default), kl_balance=0.8 (paper default).
+- Checkpoint dir: checkpoints/gram_sudoku_anticollapse/.
+
 

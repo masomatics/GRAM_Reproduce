@@ -4,6 +4,8 @@ loss:
   loss_type: stablemax_cross_entropy
   beta_kl: 0.1
   kl_balance: 0.8
+  free_bits: 0.0           # default off; set >0 to floor avg KL per batch
+  beta_warmup_steps: 0     # default off; >0 linearly warms beta from 0 to beta_kl over N iters
 
 halt_exploration_prob: 0.0   # GRAM: fixed N_sup supervision steps
 halt_max_steps: 16           # N_sup per Sudoku-Extreme experiments
