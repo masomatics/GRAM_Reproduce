@@ -132,6 +132,14 @@ class GenerativeRecursiveModel_ACTV1_Inner(nn.Module):
         self.posterior_in = CastedLinear(2 * D, D, bias=False)
         self.posterior_head = _MuSigmaHead(D, self.config.eps_expansion, self.config.eps_logsigma_init)
 
+        # LPRM (Latent Process Reward Model): v_psi reads the first token of z_H_stoch.
+        # Trained as MSE against per-step correctness; gives eps a "predict the answer
+        # quality" job so it carries information beyond what CE alone needs.
+        self.v_head = CastedLinear(D, 1, bias=True)
+        with torch.no_grad():
+            self.v_head.weight.zero_()
+            self.v_head.bias.zero_()  # type: ignore
+
     def _input_embeddings(self, inputs: torch.Tensor, puzzle_identifiers: torch.Tensor):
         embedding = self.embed_tokens(inputs.to(torch.int32))
         if self.config.puzzle_emb_ndim > 0:
@@ -208,7 +216,9 @@ class GenerativeRecursiveModel_ACTV1_Inner(nn.Module):
         new_carry = GenerativeRecursiveModel_ACTV1InnerCarry(z_H=z_H_stoch.detach(), z_L=z_L.detach())
         output = self.lm_head(z_H_stoch)[:, self.puzzle_emb_len:]
         q_logits = self.q_head(z_H_stoch[:, 0]).to(torch.float32)
-        return new_carry, output, (q_logits[..., 0], q_logits[..., 1]), (kl_q_stop, kl_p_stop)
+        # LPRM: v_psi reads the first token of z_H_stoch; returns scalar reward prediction per sample.
+        v_pred = self.v_head(z_H_stoch[:, 0]).to(torch.float32).squeeze(-1)
+        return new_carry, output, (q_logits[..., 0], q_logits[..., 1]), (kl_q_stop, kl_p_stop), v_pred
 
 
 class GenerativeRecursiveModel_ACTV1(nn.Module):
@@ -238,7 +248,7 @@ class GenerativeRecursiveModel_ACTV1(nn.Module):
         new_current_data = {k: torch.where(carry.halted.view((-1,) + (1,) * (batch[k].ndim - 1)), batch[k], v)
                             for k, v in carry.current_data.items()}
 
-        new_inner_carry, logits, (q_halt_logits, q_continue_logits), (kl_q_stop, kl_p_stop) = self.inner(
+        new_inner_carry, logits, (q_halt_logits, q_continue_logits), (kl_q_stop, kl_p_stop), v_pred = self.inner(
             new_inner_carry, new_current_data, sample_posterior=self.training,
         )
 
@@ -248,6 +258,7 @@ class GenerativeRecursiveModel_ACTV1(nn.Module):
             "q_continue_logits": q_continue_logits,
             "kl_q_stop": kl_q_stop,
             "kl_p_stop": kl_p_stop,
+            "v_pred": v_pred,
         }
 
         with torch.no_grad():

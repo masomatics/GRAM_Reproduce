@@ -18,13 +18,16 @@ from models.losses import stablemax_cross_entropy, softmax_cross_entropy, IGNORE
 class GRAMLossHead(nn.Module):
     def __init__(self, model: nn.Module, loss_type: str,
                  beta_kl: float = 0.1, kl_balance: float = 0.8,
-                 free_bits: float = 0.0, beta_warmup_steps: int = 0):
+                 free_bits: float = 0.0, beta_warmup_steps: int = 0,
+                 act_weight: float = 0.0, lprm_weight: float = 0.0):
         super().__init__()
         self.model = model
         self.loss_fn = globals()[loss_type]
         self.beta_kl = float(beta_kl)
         self.kl_balance = float(kl_balance)
         self.free_bits = float(free_bits)
+        self.act_weight = float(act_weight)
+        self.lprm_weight = float(lprm_weight)
         # Linear KL warmup. effective_beta(step) = beta_kl * min(1, step/warmup_steps).
         # Lets the posterior learn an informative signal before the KL penalty bites.
         self.beta_warmup_steps = int(beta_warmup_steps)
@@ -72,7 +75,20 @@ class GRAMLossHead(nn.Module):
             beta_eff = self.beta_kl * min(1.0, float(self._step.item()) / self.beta_warmup_steps)
         else:
             beta_eff = self.beta_kl
-        total_loss = lm_loss + beta_eff * kl_loss
+
+        # Auxiliary losses (paper Eq. 15 + 16):
+        #   L_ACT  (halt-only Sudoku variant) = sum_n (sigmoid(q_halt_n) - 1[seq_correct])^2
+        #   L_LPRM = sum_n (v_psi(z_t) - 1[seq_correct])^2    (per-step proxy for paper's final-r)
+        act_loss = torch.zeros((), device=lm_loss.device)
+        lprm_loss = torch.zeros((), device=lm_loss.device)
+        r = seq_is_correct.float()
+        if self.act_weight > 0:
+            q_halt_prob = torch.sigmoid(outputs["q_halt_logits"].float())
+            act_loss = ((q_halt_prob - r) ** 2).sum()
+        if self.lprm_weight > 0 and "v_pred" in outputs:
+            lprm_loss = ((outputs["v_pred"] - r) ** 2).sum()
+
+        total_loss = lm_loss + beta_eff * kl_loss + self.act_weight * act_loss + self.lprm_weight * lprm_loss
 
         # TRM's pretrain loop divides non-loss metric values by count (= valid.sum()).
         # Pre-multiply scalar quantities by count so the post-division yields the
@@ -81,6 +97,8 @@ class GRAMLossHead(nn.Module):
         metrics.update({
             "lm_loss": lm_loss.detach(),
             "kl_loss": kl_loss.detach(),
+            "act_loss": act_loss.detach(),
+            "lprm_loss": lprm_loss.detach(),
             "kl_mean": (kl_balanced.mean() * cnt).detach(),
             "beta_eff": (torch.tensor(beta_eff, device=lm_loss.device) * cnt).detach(),
         })
