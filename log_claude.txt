@@ -349,3 +349,93 @@ Full trajectory (eval per-token / exact, every 5K epochs):
 - auto_sync_log.sh now also rsyncs TSUBAME's offline wandb back to Miyabi
   so the existing sync+log loop covers both clusters seamlessly.
 - TSUBAME job IDs: setup=7764203, train=7764206.
+[2026-05-26T05:15:20+09:00] run=skn5a97q step=0 train/lm_loss=- train/kl_mean=- beta_eff=- eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T05:45:37+09:00] run=nvhbpgdh step=0 train/lm_loss=- train/kl_mean=- beta_eff=- eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+
+[2026-05-26 05:54] TSUBAME env reinstall + aux resubmit
+- First aux attempt 7764223 failed at dataloader: "Numpy is not available".
+  Root cause: env_extra had numpy 2.x; container torch (NVIDIA 25.01) is compiled
+  against numpy 1.x. They are mutually incompatible at the C-extension level.
+- Fix in jobs/tsubame_setup_env.sh: wipe env_extra first, install with 'numpy<2' pin.
+- Setup job 7764234: SUCCESS. Imports verified including AdamATan2.
+- jobs/tsubame_gram_aux.sh resubmitted -> job 7764250 (queued).
+[2026-05-26T06:00:52+09:00] run=nvhbpgdh step=0 train/lm_loss=- train/kl_mean=- beta_eff=- eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T06:01:05+09:00] run=a863x38g step=0 train/lm_loss=- train/kl_mean=- beta_eff=- eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T06:16:20+09:00] run=a863x38g step=0 train/lm_loss=- train/kl_mean=- beta_eff=- eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T06:16:33+09:00] run=jam4qt9g step=1684 train/lm_loss=3.5e-05 train/kl_mean=0.0671 beta_eff=0.0168 eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T06:31:56+09:00] run=jam4qt9g step=3766 train/lm_loss=4.73e-05 train/kl_mean=0.0593 beta_eff=0.0377 eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+
+[2026-05-26 06:37] Aux run (jam4qt9g) at iter 4549/65104 (7%, 34min in)
+- 2.24 it/s on TSUBAME H100 (without torch.compile due to libcuda issue in container)
+- ETA 7h 29min - fits 8h walltime
+- train/kl_mean = 0.059 (above floor 0.05) -- aux losses giving useful signal
+- train/act_loss = 0, train/lprm_loss = 7e-7 -- both saturated near zero
+  because they only have signal during the early learning phase before
+  train memorization is complete.
+- First eval at step 6510 expected in ~12 min.
+[2026-05-26T06:47:22+09:00] run=jam4qt9g step=5850 train/lm_loss=3.27e-05 train/kl_mean=0.05 beta_eff=0.0585 eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T07:02:53+09:00] run=jam4qt9g step=6509 train/lm_loss=4.6e-05 train/kl_mean=0.05 beta_eff=0.0651 eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T07:21:51+09:00] run=jam4qt9g step=6509 train/lm_loss=4.6e-05 train/kl_mean=0.05 beta_eff=0.0651 eval/acc=0.000 eval/exact=0.000 eval/lm_loss=-
+[2026-05-26T07:37:25+09:00] run=jam4qt9g step=7505 train/lm_loss=6.75e-05 train/kl_mean=0.05 beta_eff=0.075 eval/acc=0.112 eval/exact=0.000 eval/lm_loss=2.361
+[2026-05-26T07:53:01+09:00] run=jam4qt9g step=9586 train/lm_loss=3.31e-05 train/kl_mean=0.05 beta_eff=0.0959 eval/acc=0.112 eval/exact=0.000 eval/lm_loss=2.361
+[2026-05-26T08:08:43+09:00] run=jam4qt9g step=11702 train/lm_loss=2.3e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.112 eval/exact=0.000 eval/lm_loss=2.361
+[2026-05-26T08:24:26+09:00] run=jam4qt9g step=13019 train/lm_loss=2.47e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.112 eval/exact=0.000 eval/lm_loss=2.361
+[2026-05-26T08:40:09+09:00] run=jam4qt9g step=13019 train/lm_loss=2.47e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.112 eval/exact=0.000 eval/lm_loss=2.361
+[2026-05-26T08:57:21+09:00] run=jam4qt9g step=13019 train/lm_loss=2.47e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.112 eval/exact=0.000 eval/lm_loss=2.361
+[2026-05-26T09:13:09+09:00] run=jam4qt9g step=15337 train/lm_loss=1.98e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.197 eval/exact=0.000 eval/lm_loss=3.742
+[2026-05-26T09:29:01+09:00] run=jam4qt9g step=17445 train/lm_loss=1.72e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.197 eval/exact=0.000 eval/lm_loss=3.742
+[2026-05-26T09:44:54+09:00] run=jam4qt9g step=19529 train/lm_loss=1.3e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.197 eval/exact=0.000 eval/lm_loss=3.742
+[2026-05-26T10:00:47+09:00] run=jam4qt9g step=19529 train/lm_loss=1.3e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.197 eval/exact=0.000 eval/lm_loss=3.742
+[2026-05-26T10:16:49+09:00] run=jam4qt9g step=19529 train/lm_loss=1.3e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.197 eval/exact=0.000 eval/lm_loss=3.742
+[2026-05-26T10:32:43+09:00] run=jam4qt9g step=20996 train/lm_loss=1.25e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.240 eval/exact=0.000 eval/lm_loss=7.068
+[2026-05-26T10:48:42+09:00] run=jam4qt9g step=23143 train/lm_loss=1.26e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.240 eval/exact=0.000 eval/lm_loss=7.068
+[2026-05-26T11:04:46+09:00] run=jam4qt9g step=25290 train/lm_loss=1.25e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.240 eval/exact=0.000 eval/lm_loss=7.068
+[2026-05-26T11:20:54+09:00] run=jam4qt9g step=26039 train/lm_loss=1.02e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.240 eval/exact=0.000 eval/lm_loss=7.068
+[2026-05-26T11:37:04+09:00] run=jam4qt9g step=26039 train/lm_loss=1.02e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.240 eval/exact=0.000 eval/lm_loss=7.068
+[2026-05-26T11:53:15+09:00] run=jam4qt9g step=26759 train/lm_loss=1.76e-05 train/kl_mean=0.0546 beta_eff=0.1 eval/acc=0.245 eval/exact=0.000 eval/lm_loss=7.564
+[2026-05-26T12:09:28+09:00] run=jam4qt9g step=28952 train/lm_loss=9.56e-06 train/kl_mean=0.0566 beta_eff=0.1 eval/acc=0.245 eval/exact=0.000 eval/lm_loss=7.564
+[2026-05-26T12:25:42+09:00] run=jam4qt9g step=31123 train/lm_loss=1.08e-05 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.245 eval/exact=0.000 eval/lm_loss=7.564
+[2026-05-26T12:42:17+09:00] run=jam4qt9g step=32549 train/lm_loss=5.96e-06 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.245 eval/exact=0.000 eval/lm_loss=7.564
+[2026-05-26T12:58:37+09:00] run=jam4qt9g step=32549 train/lm_loss=5.96e-06 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.245 eval/exact=0.000 eval/lm_loss=7.564
+[2026-05-26T13:14:59+09:00] run=jam4qt9g step=32724 train/lm_loss=5.61e-06 train/kl_mean=0.05 beta_eff=0.1 eval/acc=0.241 eval/exact=0.000 eval/lm_loss=8.225
+
+[2026-05-26 18:00] Status snapshot before voting eval
+- TSUBAME aux run (jam4qt9g, job 7764250) WALLTIME at step 32550 / 65104
+  (25K of 50K epochs). Last eval per-token 24.5% / exact 0.0%, worse than AC at
+  same epoch (~59%). Aux losses do NOT appear to be helping; reverting focus to AC.
+- Miyabi job 2008232 (gram_aux QUEUED, scheduled start 05/27 22:00) cancelled --
+  scheduled start was AFTER Miyabi maintenance window starts 05/27 09:00.
+- auto_sync_log daemon no longer running (no jobs to sync).
+
+[2026-05-26 18:10] Paper review for evaluation protocol (verbatim, arXiv:2605.19376v2)
+- Inference (Sec 2.3, Sec 4.1): draw N=20 trajectories from prior p_theta,
+  each running N_sup=16 supervision steps. Aggregate via EITHER:
+    (a) majority voting across the N candidate grids, OR
+    (b) BEST-OF-N: pick the single trajectory whose v_psi(z_T) is HIGHEST
+        (paper's "LPRM-guided selection"). NOT per-cell weighted voting.
+- L_LPRM (Eq. 16): sum_{t=1..T} (v_psi(z_t) - r)^2, where T=high-level
+  outer steps (T=3 for Sudoku), r = exact-match accuracy of final pred y_hat.
+- L_ACT (Eq. 15): MSE on (q_halt, q_continue) with Q-learning bootstrap target.
+- Our gram_loss.py implements L_LPRM and L_ACT with binary seq_is_correct as r.
+
+[2026-05-26 18:12] PDF replaced
+- documents/GRAM_Looped.pdf was zlib-corrupted (incomplete download).
+  Re-downloaded from https://arxiv.org/pdf/2605.19376 -> documents/GRAM_arxiv.pdf
+  (5.1MB, 27 pages, parses cleanly via pymupdf).
+
+[2026-05-26 18:14] Voting eval implementation
+- New scripts/eval_vote.py:
+    * Loads checkpoint, builds GRAM model with paper Sudoku hyperparams
+      (mlp_t=True, pos_encodings=none, hidden=512, L_layers=2, eps_expansion=2.0).
+    * For each test batch, runs K independent rollouts of N_sup=16 steps each.
+    * Aggregates K candidate grids by either:
+        --strategy majority   (per-cell mode over argmax decodes)
+        --strategy best_of_N  (pick traj with max mean v_psi(z_t))
+        --strategy k1         (paper baseline; what our previous evals were)
+    * Reports per-token accuracy and exact-match accuracy.
+- New jobs/eval_vote_smoke.pbs (debug-g, 10min walltime):
+    * Runs K=20 majority vote AND K=1 baseline on 8 test batches (6144 puzzles)
+      against checkpoints/gram_sudoku_anticollapse/step_65100.
+    * IMPORTANT: best_of_N is NOT meaningful on this checkpoint (v_head was
+      never trained -- AC run had lprm_weight=0). Only majority is informative.
+- Submitted as job 2042245 (debug-g) -> QUEUED.

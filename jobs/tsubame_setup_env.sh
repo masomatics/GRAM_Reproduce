@@ -22,7 +22,10 @@ apptainer exec --cleanenv --home "$HOME" --nv "$HOME/singularity/pytorch_25.01.s
     set -eu
     python --version
     python -c 'import torch; print(torch.__version__, torch.version.cuda); print(torch.cuda.is_available())'
+    # Wipe env_extra first to drop any prior numpy 2.x.
+    find $EXTRA -mindepth 1 -delete 2>/dev/null || true
     pip install --no-cache-dir --target=$EXTRA \
+      'numpy<2' \
       hydra-core==1.3.2 omegaconf==2.3.0 coolname==2.2.0 \
       numba==0.61.2 ninja einops==0.8.1 argdantic==1.3.3 \
       wandb==0.22.2 huggingface_hub==0.34.4
